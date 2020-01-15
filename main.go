@@ -13,7 +13,7 @@ const (
 	I2C_ADDR  = "/dev/i2c-1"
 	ADDR_01   = 0x40
 	MIN_PULSE = 0
-	MAX_PULSE = 1000
+	MAX_PULSE = 5000
 )
 
 func init() {
@@ -39,20 +39,31 @@ func main() {
 
 	} else {
 
+		// self.PWMA = 0
+		// self.AIN1 = 1
+		// self.AIN2 = 2
+		// self.PWMB = 5
+		// self.BIN1 = 3
+		// self.BIN2 = 4
+
 		var deviceLog = logging.MustGetLogger("PCA9685")
 
 		pca9685 := device.NewPCA9685(i2cDevice, "PWM Controller", MIN_PULSE, MAX_PULSE, deviceLog)
-
+		// pca9685.Frequency = 50
 		pca9685.Init()
 
-		pca9685.Demo([]int{0})
+		pwm := pca9685.NewPwm(0)
+		pwm.SetPulse(0, 4096)
+		pwm.SetPercentage(100.0)
 
-		pwm00 := pca9685.NewPwm(0)
+		// set level
+		ain1 := pca9685.NewPwm(1)
+		ain1.SetPulse(0, 0)
+		ain2 := pca9685.NewPwm(2)
+		ain2.SetPulse(0, 4095)
 
-		_ = pwm00.SetPercentage(15.0)
+		time.Sleep(3 * time.Second)
 
-		time.Sleep(2 * time.Second)
-
-		pca9685.SwitchOff([]int{0})
+		pca9685.SwitchOff([]int{1, 2, 3})
 	}
 }

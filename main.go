@@ -9,11 +9,24 @@ import (
 	"golang.org/x/exp/io/i2c"
 )
 
+type Direction int
+type Drive int
+
 const (
-	I2C_ADDR  = "/dev/i2c-1"
-	ADDR_01   = 0x40
-	MIN_PULSE = 0
-	MAX_PULSE = 5000
+	i2cAddr            = "/dev/i2c-1"
+	addr01             = 0x40
+	minPulse           = 0
+	maxPulse           = 5000
+	pwmA               = 0
+	aIn1               = 1
+	aIn2               = 2
+	bIn1               = 3
+	bIn2               = 4
+	pwmB               = 5
+	driveA   Drive     = iota
+	driveB   Drive     = iota
+	forward  Direction = iota
+	backward Direction = iota
 )
 
 func init() {
@@ -26,44 +39,73 @@ func init() {
 	logging.SetBackend(stderrorLogLeveled)
 }
 
+type PCA9685_DRIVE struct {
+	pwmA *device.Pwm
+	aIn1 *device.Pwm
+	aIn2 *device.Pwm
+	pwmB *device.Pwm
+	bIn1 *device.Pwm
+	bIn2 *device.Pwm
+	pca  *device.PCA9685
+}
+
+func (p *PCA9685_DRIVE) drive(drive Drive, direction Direction) {
+	if drive == driveA {
+		if direction == forward {
+			p.aIn1.SetPulse(0, 0)
+			p.aIn2.SetPulse(0, 4095)
+
+		} else {
+			p.aIn2.SetPulse(0, 0)
+			p.aIn1.SetPulse(0, 4095)
+		}
+		p.pwmA.SetPulse(0, 4096)
+		p.pwmA.SetPercentage(100.0)
+	} else {
+		if direction == forward {
+			p.bIn1.SetPulse(0, 0)
+			p.bIn2.SetPulse(0, 4095)
+		} else {
+			p.bIn2.SetPulse(0, 0)
+			p.bIn1.SetPulse(0, 4095)
+		}
+		p.pwmB.SetPulse(0, 4096)
+		p.pwmB.SetPercentage(100.0)
+	}
+}
+
+func (p *PCA9685_DRIVE) stop() {
+	p.pca.SwitchOff([]int{pwmA, aIn1, aIn2, pwmB, bIn1, bIn2})
+}
+
 func main() {
 
 	var mainLog = logging.MustGetLogger("PCA9685 Demo")
 
-	i2cDevice, err := i2c.Open(&i2c.Devfs{Dev: I2C_ADDR}, ADDR_01)
+	i2cDevice, err := i2c.Open(&i2c.Devfs{Dev: i2cAddr}, addr01)
 	defer i2cDevice.Close()
 
 	if err != nil {
-
 		mainLog.Error(err)
-
 	} else {
-
-		// self.PWMA = 0
-		// self.AIN1 = 1
-		// self.AIN2 = 2
-		// self.PWMB = 5
-		// self.BIN1 = 3
-		// self.BIN2 = 4
-
 		var deviceLog = logging.MustGetLogger("PCA9685")
-
-		pca9685 := device.NewPCA9685(i2cDevice, "PWM Controller", MIN_PULSE, MAX_PULSE, deviceLog)
+		pca9685 := device.NewPCA9685(i2cDevice, "PWM Controller", minPulse, maxPulse, deviceLog)
 		// pca9685.Frequency = 50
 		pca9685.Init()
 
-		pwm := pca9685.NewPwm(0)
-		pwm.SetPulse(0, 4096)
-		pwm.SetPercentage(100.0)
-
-		// set level
-		ain1 := pca9685.NewPwm(1)
-		ain1.SetPulse(0, 0)
-		ain2 := pca9685.NewPwm(2)
-		ain2.SetPulse(0, 4095)
-
-		time.Sleep(3 * time.Second)
-
-		pca9685.SwitchOff([]int{1, 2, 3})
+		var drive = PCA9685_DRIVE{
+			pwmA: pca9685.NewPwm(pwmA),
+			pwmB: pca9685.NewPwm(pwmB),
+			aIn1: pca9685.NewPwm(aIn1),
+			aIn2: pca9685.NewPwm(aIn2),
+			bIn1: pca9685.NewPwm(bIn1),
+			bIn2: pca9685.NewPwm(bIn2),
+			pca:  pca9685,
+		}
+		drive.drive(driveA, forward)
+		time.Sleep(5 * time.Second)
+		drive.drive(driveA, backward)
+		time.Sleep(5 * time.Second)
+		drive.stop()
 	}
 }

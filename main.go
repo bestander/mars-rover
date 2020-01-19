@@ -103,9 +103,10 @@ func main() {
 			pca:  pca9685,
 		}
 		drive.drive(driveA, forward)
-		time.Sleep(5 * time.Second)
+		time.Sleep(8 * time.Second)
 		drive.drive(driveA, backward)
-		time.Sleep(5 * time.Second)
+		time.Sleep(8 * time.Second)
 		drive.stop()
+		time.Sleep(3 * time.Second)
 	}
 }

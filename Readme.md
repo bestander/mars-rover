@@ -20,17 +20,15 @@ The docker file builds all necessary libraries for GPIO and camera streamin from
 
 ```
 dtparam=i2c1=on
-sudo modprobe i2c-dev
-docker run -it  --device /dev/i2c-1 bestander/mars-rover
+
 ```
-
-Alternative:
-- https://dummdida.tumblr.com/post/117157045170/modprobe-in-a-docker-container
-
-docker run --device /dev/mem:/dev/mem --device /lib/modules:/lib/modules --cap-add=ALL --privileged bestander/mars-rover
 
 ### Start the bot with docker
 
+```
+docker pull bestander/mars-rover
+docker run -it --device /dev/i2c-1 -v /lib/modules:/lib/modules --privileged bestander/mars-rover
+```
 
 Pull mjpeg-streamer and start container that will stream video from camera via post 8080
 

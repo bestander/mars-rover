@@ -16,6 +16,13 @@ To get familiar with docker on Raspberry Pi check out [Hypriot blog](https://blo
 
 The docker file builds all necessary libraries for GPIO and camera streamin from sources.
 
+### Quick setup
+
+```
+docker run -it --device /dev/i2c-1 -v /lib/modules:/lib/modules --restart unless-stopped --privileged bestander/mars-rover
+
+```
+
 ### Enable I2C
 
 ```

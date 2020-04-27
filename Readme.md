@@ -19,7 +19,7 @@ The docker file builds all necessary libraries for GPIO and camera streamin from
 ### Quick setup
 
 ```
-docker run -it --device /dev/i2c-1 -v /lib/modules:/lib/modules --restart unless-stopped --privileged bestander/mars-rover
+docker run -it  -v /lib/modules:/lib/modules --restart unless-stopped --privileged bestander/mars-rover 
 
 ```
 
@@ -34,7 +34,7 @@ dtparam=i2c1=on
 
 ```
 docker pull bestander/mars-rover
-docker run -it --device /dev/i2c-1 -v /lib/modules:/lib/modules --privileged bestander/mars-rover
+docker run -it  -v /lib/modules:/lib/modules --privileged bestander/mars-rover 
 ```
 
 Pull mjpeg-streamer and start container that will stream video from camera via post 8080

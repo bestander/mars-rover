@@ -8,5 +8,5 @@ WORKDIR /go/src/github.com/bestander/mars-rover
 COPY main.go .
 RUN go get
 RUN go install
-CMD modprobe i2c-dev && mars-rover
+CMD mars-rover
 

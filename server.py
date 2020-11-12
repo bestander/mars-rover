@@ -8,6 +8,7 @@ import websockets
 import json
 
 from http import HTTPStatus
+from threading import Timer
 
 MIME_TYPES = {
     "html": "text/html",
@@ -15,6 +16,22 @@ MIME_TYPES = {
     "css": "text/css"
 }
 
+def debounce(wait):
+    """ Decorator that will postpone a functions
+        execution until after wait seconds
+        have elapsed since the last time it was invoked. """
+    def decorator(fn):
+        def debounced(*args, **kwargs):
+            def call_it():
+                fn(*args, **kwargs)
+            try:
+                debounced.t.cancel()
+            except(AttributeError):
+                pass
+            debounced.t = Timer(wait, call_it)
+            debounced.t.start()
+        return debounced
+    return decorator
 
 async def process_request(sever_root, path, request_headers):
     """Serves a file when doing a GET request with a valid path."""
@@ -50,6 +67,9 @@ async def process_request(sever_root, path, request_headers):
     print("HTTP GET {} 200 OK".format(path))
     return HTTPStatus.OK, response_headers, body
 
+@debounce(10)
+def stop():
+   print("stopping")
 
 async def handleCommands(websocket, path):
     async for message in websocket:
@@ -59,6 +79,7 @@ async def handleCommands(websocket, path):
             print(f"< {direction}")
             response = f"Ack {direction}!"
             await websocket.send(response)
+            stop()
         else:
             print("unsupported event: {}", data)
 

@@ -6,6 +6,7 @@ import random
 import functools
 import websockets
 import json
+import RPi.GPIO as GPIO
 
 from http import HTTPStatus
 from threading import Timer
@@ -15,6 +16,13 @@ MIME_TYPES = {
     "js": "text/javascript",
     "css": "text/css"
 }
+
+motor_pin = 32
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(motor_pin, GPIO.OUT)
+pi_pwm = GPIO.PWM(motor_pin, 50)
+pi_pwm.start(0)
 
 def debounce(wait):
     """ Decorator that will postpone a functions
@@ -67,15 +75,17 @@ async def process_request(sever_root, path, request_headers):
     print("HTTP GET {} 200 OK".format(path))
     return HTTPStatus.OK, response_headers, body
 
-@debounce(10)
+@debounce(1)
 def stop():
    print("stopping")
+   pi_pwm.stop()
 
 async def handleCommands(websocket, path):
     async for message in websocket:
         data = json.loads(message)
         if data["action"] == "move":
             direction = data["direction"]
+            pi_pwm.ChangeDutyCycle(4.5)
             print(f"< {direction}")
             response = f"Ack {direction}!"
             await websocket.send(response)
@@ -90,5 +100,16 @@ if __name__ == "__main__":
                                     process_request=handler)
     print("Running server at http://127.0.0.1:8765/")
 
-    asyncio.get_event_loop().run_until_complete(start_server)
-    asyncio.get_event_loop().run_forever()
+    try:
+        asyncio.get_event_loop().run_until_complete(start_server)
+        asyncio.get_event_loop().run_forever()
+
+    except KeyboardInterrupt:
+        print("User Cancelled")
+
+    finally:
+        print("Cleaning")
+        pi_pwm.stop()
+        GPIO.cleanup()
+        quit()
+   

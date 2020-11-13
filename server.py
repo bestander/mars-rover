@@ -23,6 +23,7 @@ GPIO.setmode(GPIO.BOARD)
 GPIO.setup(motor_pin, GPIO.OUT)
 pi_pwm = GPIO.PWM(motor_pin, 50)
 pi_pwm.start(0)
+pi_pwm.ChangeDutyCycle(7.5)
 
 def debounce(wait):
     """ Decorator that will postpone a functions
@@ -78,14 +79,14 @@ async def process_request(sever_root, path, request_headers):
 @debounce(1)
 def stop():
    print("stopping")
-   pi_pwm.stop()
+   pi_pwm.ChangeDutyCycle(7.5)
 
 async def handleCommands(websocket, path):
     async for message in websocket:
         data = json.loads(message)
         if data["action"] == "move":
             direction = data["direction"]
-            pi_pwm.ChangeDutyCycle(4.5)
+            pi_pwm.ChangeDutyCycle(9.5)
             print(f"< {direction}")
             response = f"Ack {direction}!"
             await websocket.send(response)

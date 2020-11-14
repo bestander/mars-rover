@@ -28,7 +28,7 @@ const styles = {
 class Controls extends React.Component {
   constructor(props) {
     super(props);
-    this.ws = new WebSocket("ws://127.0.0.1:8765/");
+    this.ws = new WebSocket(`ws://${window.location.hostname}:8765/`);
     this.ws.onmessage = function (event) {
       console.log("message", event);
     };

@@ -6,6 +6,7 @@ import random
 import functools
 import websockets
 import json
+import socket
 import time
 import RPi.GPIO as GPIO
 
@@ -59,6 +60,13 @@ def debounce(wait):
             debounced.t.start()
         return debounced
     return decorator
+
+def get_hostname():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    hostname = s.getsockname()[0]
+    s.close()
+    return hostname
 
 async def process_request(sever_root, path, request_headers):
     """Serves a file when doing a GET request with a valid path."""
@@ -117,9 +125,9 @@ async def handleCommands(websocket, path):
 if __name__ == "__main__":
     # set first argument for the handler to current working directory
     handler = functools.partial(process_request, os.getcwd())
-    start_server = websockets.serve(handleCommands, '127.0.0.1', 8765,
+    start_server = websockets.serve(handleCommands, None, 8765,
                                     process_request=handler)
-    print("Running server at http://127.0.0.1:8765/")
+    print("Running server at http://{}:8765/".format(get_hostname()))
 
     try:
         asyncio.get_event_loop().run_until_complete(start_server)

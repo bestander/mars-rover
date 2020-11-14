@@ -6,6 +6,7 @@ import random
 import functools
 import websockets
 import json
+import time
 import RPi.GPIO as GPIO
 
 from http import HTTPStatus
@@ -17,13 +18,30 @@ MIME_TYPES = {
     "css": "text/css"
 }
 
-motor_pin = 32
+left_side_pin = 32
+right_side_pin = 35
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
-GPIO.setup(motor_pin, GPIO.OUT)
-pi_pwm = GPIO.PWM(motor_pin, 50)
-pi_pwm.start(0)
-pi_pwm.ChangeDutyCycle(7.5)
+
+GPIO.setup(left_side_pin, GPIO.OUT)
+left_pwm = GPIO.PWM(left_side_pin, 50)
+left_pwm.start(0)
+left_pwm.ChangeDutyCycle(7.5)
+
+GPIO.setup(right_side_pin, GPIO.OUT)
+right_pwm = GPIO.PWM(right_side_pin, 50)
+right_pwm.start(0)
+right_pwm.ChangeDutyCycle(7.5)
+
+## init sequesnce
+left_pwm.ChangeDutyCycle(9.5)
+right_pwm.ChangeDutyCycle(9.5)
+time.sleep(3)
+left_pwm.ChangeDutyCycle(7.5)
+right_pwm.ChangeDutyCycle(7.5)
+
+
+
 
 def debounce(wait):
     """ Decorator that will postpone a functions
@@ -79,14 +97,16 @@ async def process_request(sever_root, path, request_headers):
 @debounce(1)
 def stop():
    print("stopping")
-   pi_pwm.ChangeDutyCycle(7.5)
+   left_pwm.ChangeDutyCycle(7.5)
+   right_pwm.ChangeDutyCycle(7.5)
 
 async def handleCommands(websocket, path):
     async for message in websocket:
         data = json.loads(message)
         if data["action"] == "move":
             direction = data["direction"]
-            pi_pwm.ChangeDutyCycle(9.5)
+            left_pwm.ChangeDutyCycle(9.5)
+            right_pwm.ChangeDutyCycle(9.5)
             print(f"< {direction}")
             response = f"Ack {direction}!"
             await websocket.send(response)
@@ -110,7 +130,8 @@ if __name__ == "__main__":
 
     finally:
         print("Cleaning")
-        pi_pwm.stop()
+        left_pwm.stop()
+        right_pwm.stop()
         GPIO.cleanup()
         quit()
    

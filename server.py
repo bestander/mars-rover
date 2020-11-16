@@ -10,8 +10,16 @@ import socket
 import time
 import RPi.GPIO as GPIO
 
+from enum import Enum
 from http import HTTPStatus
 from threading import Timer
+
+
+LEFT_FORWARD = 4.5
+LEFT_BACK = 9.5
+RIGHT_FORWARD = 9.5
+RIGHT_BACK = 4.5
+STOP = 7.5
 
 MIME_TYPES = {
     "html": "text/html",
@@ -19,27 +27,28 @@ MIME_TYPES = {
     "css": "text/css"
 }
 
-left_side_pin = 32
-right_side_pin = 35
+left_side_pin = 35
+right_side_pin = 33
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 
 GPIO.setup(left_side_pin, GPIO.OUT)
 left_pwm = GPIO.PWM(left_side_pin, 50)
 left_pwm.start(0)
-left_pwm.ChangeDutyCycle(7.5)
+left_pwm.ChangeDutyCycle(STOP)
 
 GPIO.setup(right_side_pin, GPIO.OUT)
 right_pwm = GPIO.PWM(right_side_pin, 50)
 right_pwm.start(0)
-right_pwm.ChangeDutyCycle(7.5)
+right_pwm.ChangeDutyCycle(STOP)
 
-## init sequesnce
-left_pwm.ChangeDutyCycle(9.5)
-right_pwm.ChangeDutyCycle(9.5)
 time.sleep(3)
-left_pwm.ChangeDutyCycle(7.5)
-right_pwm.ChangeDutyCycle(7.5)
+## init sequesnce
+left_pwm.ChangeDutyCycle(LEFT_FORWARD)
+right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+time.sleep(3)
+left_pwm.ChangeDutyCycle(STOP)
+right_pwm.ChangeDutyCycle(STOP)
 
 
 
@@ -105,17 +114,28 @@ async def process_request(sever_root, path, request_headers):
 @debounce(1)
 def stop():
    print("stopping")
-   left_pwm.ChangeDutyCycle(7.5)
-   right_pwm.ChangeDutyCycle(7.5)
+   left_pwm.ChangeDutyCycle(STOP)
+   right_pwm.ChangeDutyCycle(STOP)
 
 async def handleCommands(websocket, path):
     async for message in websocket:
         data = json.loads(message)
         if data["action"] == "move":
             direction = data["direction"]
-            left_pwm.ChangeDutyCycle(9.5)
-            right_pwm.ChangeDutyCycle(9.5)
             print(f"< {direction}")
+            if direction == "forward":
+                left_pwm.ChangeDutyCycle(LEFT_FORWARD)
+                right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+            elif direction == "backward":
+                left_pwm.ChangeDutyCycle(LEFT_BACK)
+                right_pwm.ChangeDutyCycle(RIGHT_BACK)
+            elif direction == "left":
+                left_pwm.ChangeDutyCycle(LEFT_BACK)
+                right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+            elif direction == "right":
+                left_pwm.ChangeDutyCycle(LEFT_FORWARD)
+                right_pwm.ChangeDutyCycle(RIGHT_BACK)
+
             response = f"Ack {direction}!"
             await websocket.send(response)
             stop()

@@ -14,41 +14,39 @@ from evdev import InputDevice, categorize, ecodes, list_devices
 from http import HTTPStatus
 from threading import Timer
 
-
-LEFT_FORWARD = 4.5
-LEFT_BACK = 9.5
-RIGHT_FORWARD = 9.5
-RIGHT_BACK = 4.5
-STOP = 7.5
-
 MIME_TYPES = {
     "html": "text/html",
     "js": "text/javascript",
     "css": "text/css"
 }
 
-left_side_pin = 35
-right_side_pin = 33
+PWM_FREQUENCY = 50
+STOP_DUTY_CYCLE = 7.5 # PWM value (7.5% of 20ms cycle) is between forward and backward, means stop
+DUTY_CYCLE_RANGE = 2.5 # 7.5% - 10% means forward, 5% - 7.5% means backward
+
+LEFT_SIDE_PIN = 35
+RIGHT_SIDE_PIN = 33
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 
-GPIO.setup(left_side_pin, GPIO.OUT)
-left_pwm = GPIO.PWM(left_side_pin, 50)
+GPIO.setup(LEFT_SIDE_PIN, GPIO.OUT)
+left_pwm = GPIO.PWM(LEFT_SIDE_PIN, PWM_FREQUENCY)
 left_pwm.start(0)
-left_pwm.ChangeDutyCycle(STOP)
+left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
-GPIO.setup(right_side_pin, GPIO.OUT)
-right_pwm = GPIO.PWM(right_side_pin, 50)
+GPIO.setup(RIGHT_SIDE_PIN, GPIO.OUT)
+right_pwm = GPIO.PWM(RIGHT_SIDE_PIN, PWM_FREQUENCY)
 right_pwm.start(0)
-right_pwm.ChangeDutyCycle(STOP)
+right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
-time.sleep(3)
-## init sequesnce
-left_pwm.ChangeDutyCycle(LEFT_FORWARD)
-right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
-time.sleep(3)
-left_pwm.ChangeDutyCycle(STOP)
-right_pwm.ChangeDutyCycle(STOP)
+def test_run():
+    time.sleep(3)
+    # init sequesnce
+    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+    time.sleep(3)
+    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
 def get_hostname():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -111,8 +109,8 @@ def debounce(wait):
 @debounce(1)
 def stop():
    print("stopping")
-   left_pwm.ChangeDutyCycle(STOP)
-   right_pwm.ChangeDutyCycle(STOP)
+   left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+   right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
 async def handle_websocket_commands(websocket, path):
     async for message in websocket:
@@ -121,17 +119,17 @@ async def handle_websocket_commands(websocket, path):
             direction = data["direction"]
             print(f"< {direction}")
             if direction == "forward":
-                left_pwm.ChangeDutyCycle(LEFT_FORWARD)
-                right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
             elif direction == "backward":
-                left_pwm.ChangeDutyCycle(LEFT_BACK)
-                right_pwm.ChangeDutyCycle(RIGHT_BACK)
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
             elif direction == "left":
-                left_pwm.ChangeDutyCycle(LEFT_BACK)
-                right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
             elif direction == "right":
-                left_pwm.ChangeDutyCycle(LEFT_FORWARD)
-                right_pwm.ChangeDutyCycle(RIGHT_BACK)
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
 
             response = f"Ack {direction}!"
             await websocket.send(response)
@@ -153,29 +151,23 @@ async def controller_event_hanlder(dev):
     async for event in dev.async_read_loop():
         if event.type == ecodes.EV_ABS:
             category = categorize(event)
-            if (ecodes.ABS[event.code] == 'ABS_X'):
-                if event.value < 0:
-                    left_pwm.ChangeDutyCycle(LEFT_FORWARD)
-                    right_pwm.ChangeDutyCycle(RIGHT_BACK)
-                elif event.value > 0:
-                    left_pwm.ChangeDutyCycle(LEFT_BACK)
-                    right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
-                else:
-                    left_pwm.ChangeDutyCycle(STOP)
-                    right_pwm.ChangeDutyCycle(STOP)
+            # if (ecodes.ABS[event.code] == 'ABS_X'):
+            #     if event.value < 0:
+            #         left_pwm.ChangeDutyCycle(LEFT_FORWARD)
+            #         right_pwm.ChangeDutyCycle(RIGHT_BACK)
+            #     elif event.value > 0:
+            #         left_pwm.ChangeDutyCycle(LEFT_BACK)
+            #         right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+            #     else:
+            #         left_pwm.ChangeDutyCycle(STOP)
+            #         right_pwm.ChangeDutyCycle(STOP)
             if (ecodes.ABS[event.code] == 'ABS_Y'):
-                if event.value < 0:
-                    left_pwm.ChangeDutyCycle(LEFT_BACK)
-                    right_pwm.ChangeDutyCycle(RIGHT_BACK)
-                elif event.value > 0:
-                    left_pwm.ChangeDutyCycle(LEFT_FORWARD)
-                    right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
-                else:
-                    left_pwm.ChangeDutyCycle(STOP)
-                    right_pwm.ChangeDutyCycle(STOP)
+                duty_cycle_change = DUTY_CYCLE_RANGE * event.value / 32767
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + duty_cycle_change)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
 
 if __name__ == "__main__":
-    # set first argument for the handler to current working directory
+    test_run()
     handler = functools.partial(process_request, os.getcwd())
     start_server = websockets.serve(handle_websocket_commands, None, 8765,
                                     process_request=handler)

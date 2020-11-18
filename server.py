@@ -10,7 +10,7 @@ import socket
 import time
 import RPi.GPIO as GPIO
 
-from enum import Enum
+from evdev import InputDevice, categorize, ecodes, list_devices
 from http import HTTPStatus
 from threading import Timer
 
@@ -49,26 +49,6 @@ right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
 time.sleep(3)
 left_pwm.ChangeDutyCycle(STOP)
 right_pwm.ChangeDutyCycle(STOP)
-
-
-
-
-def debounce(wait):
-    """ Decorator that will postpone a functions
-        execution until after wait seconds
-        have elapsed since the last time it was invoked. """
-    def decorator(fn):
-        def debounced(*args, **kwargs):
-            def call_it():
-                fn(*args, **kwargs)
-            try:
-                debounced.t.cancel()
-            except(AttributeError):
-                pass
-            debounced.t = Timer(wait, call_it)
-            debounced.t.start()
-        return debounced
-    return decorator
 
 def get_hostname():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -111,13 +91,30 @@ async def process_request(sever_root, path, request_headers):
     print("HTTP GET {} 200 OK".format(path))
     return HTTPStatus.OK, response_headers, body
 
+def debounce(wait):
+    """ Decorator that will postpone a functions
+        execution until after wait seconds
+        have elapsed since the last time it was invoked. """
+    def decorator(fn):
+        def debounced(*args, **kwargs):
+            def call_it():
+                fn(*args, **kwargs)
+            try:
+                debounced.t.cancel()
+            except(AttributeError):
+                pass
+            debounced.t = Timer(wait, call_it)
+            debounced.t.start()
+        return debounced
+    return decorator
+
 @debounce(1)
 def stop():
    print("stopping")
    left_pwm.ChangeDutyCycle(STOP)
    right_pwm.ChangeDutyCycle(STOP)
 
-async def handleCommands(websocket, path):
+async def handle_websocket_commands(websocket, path):
     async for message in websocket:
         data = json.loads(message)
         if data["action"] == "move":
@@ -142,16 +139,53 @@ async def handleCommands(websocket, path):
         else:
             print("unsupported event: {}", data)
 
+async def wait_for_controller(loop):
+    devices = [InputDevice(path) for path in list_devices()]
+    controller = next((device for device in devices if device.name == "Wireless Steam Controller"), None)
+    if controller == None:
+        await asyncio.sleep(1)
+        return (await wait_for_controller(loop))
+    else:
+        return await controller_event_hanlder(controller)
+
+    
+async def controller_event_hanlder(dev):
+    async for event in dev.async_read_loop():
+        if event.type == ecodes.EV_ABS:
+            category = categorize(event)
+            if (ecodes.ABS[event.code] == 'ABS_X'):
+                if event.value < 0:
+                    left_pwm.ChangeDutyCycle(LEFT_FORWARD)
+                    right_pwm.ChangeDutyCycle(RIGHT_BACK)
+                elif event.value > 0:
+                    left_pwm.ChangeDutyCycle(LEFT_BACK)
+                    right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+                else:
+                    left_pwm.ChangeDutyCycle(STOP)
+                    right_pwm.ChangeDutyCycle(STOP)
+            if (ecodes.ABS[event.code] == 'ABS_Y'):
+                if event.value < 0:
+                    left_pwm.ChangeDutyCycle(LEFT_BACK)
+                    right_pwm.ChangeDutyCycle(RIGHT_BACK)
+                elif event.value > 0:
+                    left_pwm.ChangeDutyCycle(LEFT_FORWARD)
+                    right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
+                else:
+                    left_pwm.ChangeDutyCycle(STOP)
+                    right_pwm.ChangeDutyCycle(STOP)
+
 if __name__ == "__main__":
     # set first argument for the handler to current working directory
     handler = functools.partial(process_request, os.getcwd())
-    start_server = websockets.serve(handleCommands, None, 8765,
+    start_server = websockets.serve(handle_websocket_commands, None, 8765,
                                     process_request=handler)
     print("Running server at http://{}:8765/".format(get_hostname()))
 
     try:
-        asyncio.get_event_loop().run_until_complete(start_server)
-        asyncio.get_event_loop().run_forever()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(start_server)
+        loop.run_until_complete(wait_for_controller(loop))
+        loop.run_forever()
 
     except KeyboardInterrupt:
         print("User Cancelled")

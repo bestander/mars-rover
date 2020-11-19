@@ -19,6 +19,8 @@ MIME_TYPES = {
     "js": "text/javascript",
     "css": "text/css"
 }
+MAX_AXIS_VALUE = 32767
+PORT = 8765
 
 PWM_FREQUENCY = 50
 STOP_DUTY_CYCLE = 7.5 # PWM value (7.5% of 20ms cycle) is between forward and backward, means stop
@@ -146,32 +148,39 @@ async def wait_for_controller(loop):
     else:
         return await controller_event_hanlder(controller)
 
-    
+last_x_axis_value = 0
+last_y_axis_value = 0
+
 async def controller_event_hanlder(dev):
+    global last_x_axis_value
+    global last_y_axis_value
+
     async for event in dev.async_read_loop():
         if event.type == ecodes.EV_ABS:
             category = categorize(event)
-            # if (ecodes.ABS[event.code] == 'ABS_X'):
-            #     if event.value < 0:
-            #         left_pwm.ChangeDutyCycle(LEFT_FORWARD)
-            #         right_pwm.ChangeDutyCycle(RIGHT_BACK)
-            #     elif event.value > 0:
-            #         left_pwm.ChangeDutyCycle(LEFT_BACK)
-            #         right_pwm.ChangeDutyCycle(RIGHT_FORWARD)
-            #     else:
-            #         left_pwm.ChangeDutyCycle(STOP)
-            #         right_pwm.ChangeDutyCycle(STOP)
+            if (ecodes.ABS[event.code] == 'ABS_X'):
+                last_x_axis_value = event.value
             if (ecodes.ABS[event.code] == 'ABS_Y'):
-                duty_cycle_change = DUTY_CYCLE_RANGE * event.value / 32767
+                last_y_axis_value = event.value
+            
+            if abs(last_x_axis_value) > abs(last_y_axis_value):
+                # turn mode
+                duty_cycle_change = DUTY_CYCLE_RANGE * last_x_axis_value / MAX_AXIS_VALUE
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
+
+            else:
+                # move mode
+                duty_cycle_change = DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE
                 left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + duty_cycle_change)
                 right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
 
 if __name__ == "__main__":
     test_run()
     handler = functools.partial(process_request, os.getcwd())
-    start_server = websockets.serve(handle_websocket_commands, None, 8765,
+    start_server = websockets.serve(handle_websocket_commands, None, PORT,
                                     process_request=handler)
-    print("Running server at http://{}:8765/".format(get_hostname()))
+    print("Running server at http://{}:{}/".format(get_hostname(), PORT))
 
     try:
         loop = asyncio.get_event_loop()

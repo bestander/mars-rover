@@ -14,6 +14,7 @@
 - Enable I2C and SSH
 - sudo apt install python3-rpi.gpio
 - python3 server.py
+- installing missing native .so files https://blog.piwheels.org/how-to-work-out-the-missing-dependencies-for-a-python-package/
 
 ## Autostart
 

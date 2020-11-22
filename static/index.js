@@ -28,7 +28,7 @@ const styles = {
 class Controls extends React.Component {
   constructor(props) {
     super(props);
-    this.ws = new WebSocket(`ws://${window.location.hostname}:8765/`);
+    this.ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws`);
     this.ws.onmessage = function (event) {
       console.log("message", event);
     };
@@ -59,6 +59,7 @@ class Controls extends React.Component {
           >
             Left
           </button>
+          <img src="/video_feed" />
           <button
             style={styles.horizontalButton}
             onClick={() =>

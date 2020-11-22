@@ -1,18 +1,16 @@
-
-import os
 import asyncio
-import datetime
-import random
-import functools
-import websockets
 import json
 import socket
 import time
+import imutils
 import RPi.GPIO as GPIO
-
+import threading
+import cv2
+from quart import Quart
+from quart import render_template
+from quart import websocket
+from quart import Response
 from evdev import InputDevice, categorize, ecodes, list_devices
-from http import HTTPStatus
-from threading import Timer
 
 MIME_TYPES = {
     "html": "text/html",
@@ -41,14 +39,18 @@ right_pwm = GPIO.PWM(RIGHT_SIDE_PIN, PWM_FREQUENCY)
 right_pwm.start(0)
 right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
-def test_run():
-    time.sleep(3)
+app = Quart(__name__)
+
+def test_run_motors():
     # init sequesnce
     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
     time.sleep(3)
     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+
+# run motors and delay to allow camera to init
+test_run_motors()
 
 def get_hostname():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -57,39 +59,56 @@ def get_hostname():
     s.close()
     return hostname
 
-async def process_request(sever_root, path, request_headers):
-    """Serves a file when doing a GET request with a valid path."""
+@app.route("/")
+async def index():
+    # return the rendered template
+    return await render_template("controls.html")
 
-    if "Upgrade" in request_headers:
-        return  # Probably a WebSocket connection
+class Camera:
+    last_frame = []
 
-    if path == '/':
-        path = '/index.html'
+    def __init__(self, source: int):
+        self.video_source = source
+        self.cv2_cam = cv2.VideoCapture(self.video_source)
+        self.event = asyncio.Event()
 
-    response_headers = [
-        ('Server', 'asyncio websocket server'),
-        ('Connection', 'close'),
-    ]
+    def set_video_source(self, source):
+        self.video_source = source
+        self.cv2_cam = cv2.VideoCapture(self.video_source)
 
-    # Derive full system path
-    full_path = os.path.realpath(os.path.join(sever_root, path[1:]))
+    async def get_frame(self):
+        await self.event.wait()
+        self.event.clear()
+        return Camera.last_frame
 
-    # Validate the path
-    if os.path.commonpath((sever_root, full_path)) != sever_root or \
-            not os.path.exists(full_path) or not os.path.isfile(full_path):
-        print("HTTP GET {} 404 NOT FOUND".format(path))
-        return HTTPStatus.NOT_FOUND, [], b'404 NOT FOUND'
+    def frames(self):
+        if not self.cv2_cam.isOpened():
+            raise RuntimeError("Could not start camera.")
 
-    # Guess file content type
-    extension = full_path.split(".")[-1]
-    mime_type = MIME_TYPES.get(extension, "application/octet-stream")
-    response_headers.append(('Content-Type', mime_type))
+        while True:
+            # read current frame
+            _, frame = self.cv2_cam.read()
 
-    # Read the whole file into memory and send it out
-    body = open(full_path, 'rb').read()
-    response_headers.append(('Content-Length', str(len(body))))
-    print("HTTP GET {} 200 OK".format(path))
-    return HTTPStatus.OK, response_headers, body
+            # encode as a jpeg image and return it
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            frame = cv2.GaussianBlur(frame, (7,7), 0)
+            frame = cv2.Canny(frame, 50, 50)
+
+            Camera.last_frame = [cv2.imencode(".jpg", frame)[1].tobytes(), frame]
+            self.event.set()
+            yield Camera.last_frame
+        self.cv2_cam.release()
+
+async def gen(c: Camera):
+    for frame in c.frames():
+        # d_frame = cv_processing.draw_debugs_jpegs(c.get_frame()[1])
+        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame[0] + b"\r\n")
+
+c_gen = gen(Camera(0))
+
+@app.route("/video_feed")
+def video_feed():
+    return Response(c_gen, mimetype="multipart/x-mixed-replace; boundary=frame")
 
 def debounce(wait):
     """ Decorator that will postpone a functions
@@ -103,7 +122,7 @@ def debounce(wait):
                 debounced.t.cancel()
             except(AttributeError):
                 pass
-            debounced.t = Timer(wait, call_it)
+            debounced.t = threading.Timer(wait, call_it)
             debounced.t.start()
         return debounced
     return decorator
@@ -114,30 +133,37 @@ def stop():
    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
-async def handle_websocket_commands(websocket, path):
-    async for message in websocket:
-        data = json.loads(message)
-        if data["action"] == "move":
-            direction = data["direction"]
-            print(f"< {direction}")
-            if direction == "forward":
-                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-            elif direction == "backward":
-                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-            elif direction == "left":
-                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-            elif direction == "right":
-                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-
-            response = f"Ack {direction}!"
-            await websocket.send(response)
-            stop()
-        else:
-            print("unsupported event: {}", data)
+@app.websocket("/ws")
+async def handle_websocket_commands():
+    websocket.headers
+    while True:
+        try:
+            message = await websocket.receive()
+            data = json.loads(message)
+            if data["action"] == "move":
+                direction = data["direction"]
+                print(f"< {direction}")
+                if direction == "forward":
+                    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+                    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+                elif direction == "backward":
+                    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+                    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+                elif direction == "left":
+                    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+                    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+                elif direction == "right":
+                    left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+                    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+                response = f"Ack {direction}!"
+                await websocket.send(response)
+                stop()
+            else:
+                print("unsupported event: {}", data)
+                await websocket.send(f"Echo {data}")
+        except asyncio.CancelledError:
+            # Handle disconnect
+            raise
 
 async def wait_for_controller(loop):
     devices = [InputDevice(path) for path in list_devices()]
@@ -176,16 +202,13 @@ async def controller_event_hanlder(dev):
                 right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
 
 if __name__ == "__main__":
-    test_run()
-    handler = functools.partial(process_request, os.getcwd())
-    start_server = websockets.serve(handle_websocket_commands, None, PORT,
-                                    process_request=handler)
-    print("Running server at http://{}:{}/".format(get_hostname(), PORT))
-
+    hostname = get_hostname()
     try:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(start_server)
         loop.run_until_complete(wait_for_controller(loop))
+
+        app.run(host = hostname, port = PORT)
+
         loop.run_forever()
 
     except KeyboardInterrupt:

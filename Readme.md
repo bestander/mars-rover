@@ -32,5 +32,5 @@
  [Install]
  WantedBy=multi-user.target
  ```
-
+sudo systemctl stop mars-rover
 

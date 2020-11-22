@@ -165,12 +165,13 @@ async def handle_websocket_commands():
             # Handle disconnect
             raise
 
-async def wait_for_controller(loop):
+async def wait_for_controller():
+    print("wait_for_controller")
     devices = [InputDevice(path) for path in list_devices()]
     controller = next((device for device in devices if device.name == "Wireless Steam Controller"), None)
     if controller == None:
         await asyncio.sleep(1)
-        return (await wait_for_controller(loop))
+        return (await wait_for_controller())
     else:
         return await controller_event_hanlder(controller)
 
@@ -184,6 +185,7 @@ async def controller_event_hanlder(dev):
     async for event in dev.async_read_loop():
         if event.type == ecodes.EV_ABS:
             category = categorize(event)
+            print(category)
             if (ecodes.ABS[event.code] == 'ABS_X'):
                 last_x_axis_value = event.value
             if (ecodes.ABS[event.code] == 'ABS_Y'):
@@ -203,12 +205,11 @@ async def controller_event_hanlder(dev):
 
 if __name__ == "__main__":
     hostname = get_hostname()
+    loop = asyncio.get_event_loop()
+   
     try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(wait_for_controller(loop))
-
-        app.run(host = hostname, port = PORT)
-
+        loop.create_task(wait_for_controller())
+        loop.run_until_complete(app.run_task(host = hostname, port = PORT))
         loop.run_forever()
 
     except KeyboardInterrupt:

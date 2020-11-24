@@ -44,7 +44,7 @@ app = Quart(__name__)
 def test_run_motors():
     # init sequesnce
     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+    right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
     time.sleep(3)
     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
@@ -185,23 +185,22 @@ async def controller_event_hanlder(dev):
     async for event in dev.async_read_loop():
         if event.type == ecodes.EV_ABS:
             category = categorize(event)
-            print(category)
             if (ecodes.ABS[event.code] == 'ABS_X'):
                 last_x_axis_value = event.value
             if (ecodes.ABS[event.code] == 'ABS_Y'):
                 last_y_axis_value = event.value
             
-            if abs(last_x_axis_value) > abs(last_y_axis_value):
-                # turn mode
-                duty_cycle_change = DUTY_CYCLE_RANGE * last_x_axis_value / MAX_AXIS_VALUE
-                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
-                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
-
+            left_adjustment = 1
+            right_adjustment = 1
+            if last_x_axis_value > 0:
+                left_adjustment = (1 - abs(last_x_axis_value) / MAX_AXIS_VALUE)
             else:
-                # move mode
-                duty_cycle_change = DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE
-                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + duty_cycle_change)
-                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - duty_cycle_change)
+                right_adjustment = (1 - abs(last_x_axis_value) / MAX_AXIS_VALUE)
+
+            right_duty_cycle = STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE * left_adjustment
+            left_duty_cycle = STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE * right_adjustment
+            left_pwm.ChangeDutyCycle(left_duty_cycle)
+            right_pwm.ChangeDutyCycle(right_duty_cycle)
 
 if __name__ == "__main__":
     hostname = get_hostname()
@@ -209,7 +208,7 @@ if __name__ == "__main__":
    
     try:
         loop.create_task(wait_for_controller())
-        loop.run_until_complete(app.run_task(host = hostname, port = PORT))
+        # loop.run_until_complete(app.run_task(host = hostname, port = PORT))
         loop.run_forever()
 
     except KeyboardInterrupt:

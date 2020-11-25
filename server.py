@@ -6,6 +6,7 @@ import imutils
 import RPi.GPIO as GPIO
 import threading
 import cv2
+import quart
 from quart import Quart
 from quart import render_template
 from quart import websocket
@@ -50,7 +51,7 @@ def test_run_motors():
     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
 # run motors and delay to allow camera to init
-test_run_motors()
+# test_run_motors()
 
 def get_hostname():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -68,6 +69,7 @@ class Camera:
     last_frame = []
 
     def __init__(self, source: int):
+        print("init")
         self.video_source = source
         self.cv2_cam = cv2.VideoCapture(self.video_source)
         self.event = asyncio.Event()
@@ -77,6 +79,8 @@ class Camera:
         self.cv2_cam = cv2.VideoCapture(self.video_source)
 
     async def get_frame(self):
+        print("get frame")
+
         await self.event.wait()
         self.event.clear()
         return Camera.last_frame
@@ -86,6 +90,8 @@ class Camera:
             raise RuntimeError("Could not start camera.")
 
         while True:
+            print("frame while")
+
             # read current frame
             _, frame = self.cv2_cam.read()
 
@@ -96,6 +102,7 @@ class Camera:
 
             Camera.last_frame = [cv2.imencode(".jpg", frame)[1].tobytes(), frame]
             self.event.set()
+            asyncio.sleep(1)
             yield Camera.last_frame
         self.cv2_cam.release()
 
@@ -137,6 +144,7 @@ def stop():
 async def handle_websocket_commands():
     websocket.headers
     while True:
+        print("handle_websocket_commands")
         try:
             message = await websocket.receive()
             data = json.loads(message)
@@ -183,6 +191,7 @@ async def controller_event_hanlder(dev):
     global last_y_axis_value
 
     async for event in dev.async_read_loop():
+        print("controller_event_hanlder")
         if event.type == ecodes.EV_ABS:
             category = categorize(event)
             if (ecodes.ABS[event.code] == 'ABS_X'):
@@ -208,8 +217,7 @@ if __name__ == "__main__":
    
     try:
         loop.create_task(wait_for_controller())
-        # loop.run_until_complete(app.run_task(host = hostname, port = PORT))
-        loop.run_forever()
+        loop.run_until_complete(app.run_task(host = hostname, port = PORT))
 
     except KeyboardInterrupt:
         print("User Cancelled")

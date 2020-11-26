@@ -1,45 +1,45 @@
 
 
-function Video({ srcObject, ...props }) {
+const styles = {
+  container: {
+    height: "100%",
+    width: "100%",
+  },
+  overlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: "10%",
+    width: "100%",
+    background: "green",
+  },
+  video: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: "100%",
+    width: "100%",
+  },
+};
+
+function Video({ srcObject, onStartPlayback, ...props }) {
   const refVideo = React.useRef(null)
 
   React.useEffect(() => {
     if (!refVideo.current) return
-    refVideo.current.srcObject = srcObject
+    refVideo.current.srcObject = srcObject;
   }, [srcObject])
 
   return <video ref={refVideo} {...props} />
 }
 
-const styles = {
-  container: {
-    height: "100%",
-    width: "100%",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  turnButtonsContainer: {
-    display: "flex",
-    flexDirection: "row",
-    height: "30%",
-    width: "100%",
-    justifyContent: "space-between",
-  },
-  verticalButton: {
-    height: "30%",
-    width: "30%",
-  },
-  horizontalButton: {
-    width: "30%",
-  },
-};
-
 class Controls extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { videoStream: null };
+    this.state = { 
+      videoStream: null ,
+  };
+
     const connection = new rtcbot.RTCConnection();
     this.connection = connection;
     connection.video.subscribe((stream) => {
@@ -61,53 +61,38 @@ class Controls extends React.Component {
   }
 
   render() {
-    return (
-      <div style={styles.container}>
-        <button
-          style={styles.verticalButton}
-          onClick={() =>
+    return (<div style={styles.container}>
+      <Video style={styles.video} playsinline autoplay controls srcObject={this.state.videoStream}></Video>
+      <div style={styles.overlay}
+        onMouseDown={(e) => {
+          if (e.clientY < document.body.clientHeight / 3) {
             this.connection.put_nowait(
               JSON.stringify({ action: "move", direction: "forward" })
             )
-          }
-        >
-          Forward
-        </button>
-        <div style={styles.turnButtonsContainer}>
-          <button
-            style={styles.horizontalButton}
-            onClick={() =>
+          } else if (e.clientY > document.body.clientHeight * 2 / 3) {
+            this.connection.put_nowait(
+              JSON.stringify({ action: "move", direction: "backward" })
+            )
+          } else {
+            if (e.clientX < document.body.clientWidth / 3) {
               this.connection.put_nowait(
                 JSON.stringify({ action: "move", direction: "left" })
               )
-            }
-          >
-            Left
-          </button>
-          <Video autoplay playsinline controls srcObject = {this.state.videoStream}></Video> 
-          <button
-            style={styles.horizontalButton}
-            onClick={() =>
+            } else if (e.clientX > document.body.clientWidth * 2 / 3) {
               this.connection.put_nowait(
                 JSON.stringify({ action: "move", direction: "right" })
               )
             }
-          >
-            Right
-          </button>
-        </div>
-        <button
-          style={styles.verticalButton}
-          onClick={() =>
-            this.connection.put_nowait(
-              JSON.stringify({ action: "move", direction: "backward" })
-            )
           }
-        >
-          Backward
-        </button>
+        }}
+        onMouseUp={(e) => {
+          this.connection.put_nowait(
+            JSON.stringify({ action: "move", direction: "stop" })
+          )
+        }}
+      >
       </div>
-    );
+    </div>)
   }
 }
 

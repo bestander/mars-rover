@@ -5,8 +5,6 @@ from evdev import InputDevice, categorize, ecodes, list_devices
 import json
 from rtcbot import RTCConnection, getRTCBotJS, PiCamera
 import RPi.GPIO as GPIO
-import threading
-
 
 MAX_AXIS_VALUE = 32767
 PWM_FREQUENCY = 50
@@ -32,24 +30,6 @@ routes = web.RouteTableDef()
 camera = PiCamera()
 bwSubscription = asyncio.Queue()
 
-def debounce(wait):
-    """ Decorator that will postpone a functions
-        execution until after wait seconds
-        have elapsed since the last time it was invoked. """
-    def decorator(fn):
-        def debounced(*args, **kwargs):
-            def call_it():
-                fn(*args, **kwargs)
-            try:
-                debounced.t.cancel()
-            except(AttributeError):
-                pass
-            debounced.t = threading.Timer(wait, call_it)
-            debounced.t.start()
-        return debounced
-    return decorator
-
-
 frames = 0
 @camera.subscribe
 async def onFrame(frame):
@@ -70,7 +50,6 @@ async def index(request):
 async def rtcbotjs(request):
     return web.Response(content_type="application/javascript", text=getRTCBotJS())
 
-# This sets up the connection
 @routes.post("/connect")
 async def connect(request):
     clientOffer = await request.json()
@@ -80,18 +59,9 @@ async def connect(request):
     conn.subscribe(onMessage)
     return web.json_response(serverResponse)
     
-
-@debounce(1)
-def stop():
-   print("stopping")
-   left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
-   right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
-
 async def onMessage(data):
-
     if data["action"] == "move":
         direction = data["direction"]
-        print(f"< {direction}")
         if direction == "forward":
             left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
             right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
@@ -99,12 +69,14 @@ async def onMessage(data):
             left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
             right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
         elif direction == "left":
-            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-        elif direction == "right":
             left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
             right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-        stop()
+        elif direction == "right":
+            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+        elif direction == "stop":
+            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
     else:
         print("unsupported event: {}", data)
 
@@ -156,4 +128,5 @@ async def onControllerEvent(dev):
 
 loop = asyncio.get_event_loop()
 loop.create_task(waitForController())
+
 web.run_app(app, port = 8000)

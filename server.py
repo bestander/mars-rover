@@ -113,17 +113,23 @@ async def onControllerEvent(dev):
             if (ecodes.ABS[event.code] == 'ABS_Y'):
                 last_y_axis_value = event.value
             
-            left_adjustment = 1
-            right_adjustment = 1
-            if last_x_axis_value > 0:
-                left_adjustment = (1 - abs(last_x_axis_value) / MAX_AXIS_VALUE)
+            if abs(last_x_axis_value) > abs(last_y_axis_value):
+                # turn mode
+                left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE * last_x_axis_value / MAX_AXIS_VALUE)
+                right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_x_axis_value / MAX_AXIS_VALUE)
             else:
-                right_adjustment = (1 - abs(last_x_axis_value) / MAX_AXIS_VALUE)
+                # drive mode
+                left_adjustment = 1
+                right_adjustment = 1
+                if last_x_axis_value > 0:
+                    left_adjustment = (1 - abs(last_x_axis_value) / MAX_AXIS_VALUE)
+                else:
+                    right_adjustment = (1 - abs(last_x_axis_value) / MAX_AXIS_VALUE)
 
-            right_duty_cycle = STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE * left_adjustment
-            left_duty_cycle = STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE * right_adjustment
-            left_pwm.ChangeDutyCycle(left_duty_cycle)
-            right_pwm.ChangeDutyCycle(right_duty_cycle)
+                right_duty_cycle = STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE * left_adjustment
+                left_duty_cycle = STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE * last_y_axis_value / MAX_AXIS_VALUE * right_adjustment
+                left_pwm.ChangeDutyCycle(left_duty_cycle)
+                right_pwm.ChangeDutyCycle(right_duty_cycle)
 
 loop = asyncio.get_event_loop()
 loop.create_task(waitForController())

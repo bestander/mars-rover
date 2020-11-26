@@ -90,7 +90,6 @@ app.add_routes(routes)
 app.on_shutdown.append(cleanup)
 
 async def waitForController():
-    print("waitForController")
     devices = [InputDevice(path) for path in list_devices()]
     controller = next((device for device in devices if device.name == "Wireless Steam Controller"), None)
     if controller == None:

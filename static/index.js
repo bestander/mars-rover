@@ -1,5 +1,3 @@
-
-
 const styles = {
   container: {
     height: "100%",
@@ -9,9 +7,9 @@ const styles = {
     position: "absolute",
     left: 0,
     right: 0,
-    height: "10%",
+    height: "100%",
     width: "100%",
-    background: "green",
+    background: "transparent",
   },
   video: {
     position: "absolute",
@@ -22,78 +20,67 @@ const styles = {
   },
 };
 
-function Video({ srcObject, onStartPlayback, ...props }) {
-  const refVideo = React.useRef(null)
+function Controls() {
+  const [connection, setConnection] = React.useState(null);
+  const [isVideoStarted, setVideoStarted] = React.useState(false);
+  const refVideo = React.useRef(null);
 
-  React.useEffect(() => {
-    if (!refVideo.current) return
-    refVideo.current.srcObject = srcObject;
-  }, [srcObject])
-
-  return <video ref={refVideo} {...props} />
-}
-
-class Controls extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { 
-      videoStream: null ,
+  const playVideo = () => {
+    if (refVideo.current && refVideo.current.srcObject && !isVideoStarted) {
+      setVideoStarted(true);
+      refVideo.current.play();
+    }
   };
 
-    const connection = new rtcbot.RTCConnection();
-    this.connection = connection;
-    connection.video.subscribe((stream) => {
-      this.setState({ videoStream: stream });
+  React.useEffect(async () => {
+    const newConnection = new rtcbot.RTCConnection();
+    newConnection.video.subscribe((stream) => {
+      refVideo.current.srcObject = stream;
     });
-    connection.subscribe(m => console.log("Received from python:", m))
+    newConnection.subscribe(m => console.log("Received from python:", m))
+    const offer = await newConnection.getLocalDescription();
+    const response = await fetch("/connect", {
+      method: "POST",
+      cache: "no-cache",
+      body: JSON.stringify(offer)
+    });
+    await newConnection.setRemoteDescription(await response.json());
+    setConnection(newConnection);
+  }, [])
 
-    async function connect() {
-      let offer = await connection.getLocalDescription();
-      let response = await fetch("/connect", {
-        method: "POST",
-        cache: "no-cache",
-        body: JSON.stringify(offer)
-      });
-
-      await connection.setRemoteDescription(await response.json());
-    }
-    connect();
-  }
-
-  render() {
-    return (<div style={styles.container}>
-      <Video style={styles.video} playsinline autoplay controls srcObject={this.state.videoStream}></Video>
-      <div style={styles.overlay}
-        onMouseDown={(e) => {
-          if (e.clientY < document.body.clientHeight / 3) {
-            this.connection.put_nowait(
-              JSON.stringify({ action: "move", direction: "forward" })
-            )
-          } else if (e.clientY > document.body.clientHeight * 2 / 3) {
-            this.connection.put_nowait(
-              JSON.stringify({ action: "move", direction: "backward" })
-            )
-          } else {
-            if (e.clientX < document.body.clientWidth / 3) {
-              this.connection.put_nowait(
-                JSON.stringify({ action: "move", direction: "left" })
-              )
-            } else if (e.clientX > document.body.clientWidth * 2 / 3) {
-              this.connection.put_nowait(
-                JSON.stringify({ action: "move", direction: "right" })
-              )
-            }
-          }
-        }}
-        onMouseUp={(e) => {
-          this.connection.put_nowait(
-            JSON.stringify({ action: "move", direction: "stop" })
+  return (<div style={styles.container}>
+    <video ref={refVideo} style={styles.video} playsinline autoplay controls />
+    <div style={styles.overlay}
+      onMouseDown={(e) => {
+        playVideo();
+        if (e.clientY < document.body.clientHeight / 3) {
+          connection.put_nowait(
+            JSON.stringify({ action: "move", direction: "forward" })
           )
-        }}
-      >
-      </div>
-    </div>)
-  }
+        } else if (e.clientY > document.body.clientHeight * 2 / 3) {
+          connection.put_nowait(
+            JSON.stringify({ action: "move", direction: "backward" })
+          )
+        } else {
+          if (e.clientX < document.body.clientWidth / 3) {
+            connection.put_nowait(
+              JSON.stringify({ action: "move", direction: "left" })
+            )
+          } else if (e.clientX > document.body.clientWidth * 2 / 3) {
+            connection.put_nowait(
+              JSON.stringify({ action: "move", direction: "right" })
+            )
+          }
+        }
+      }}
+      onMouseUp={(e) => {
+        connection.put_nowait(
+          JSON.stringify({ action: "move", direction: "stop" })
+        )
+      }}
+    >
+    </div>
+  </div>)
 }
 
 ReactDOM.render(<Controls />, document.querySelector("#controls"));

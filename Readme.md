@@ -26,8 +26,10 @@
  [Service]
  Type=idle
  WorkingDirectory=/home/pi/mars-rover
- ExecStart=/usr/bin/python3 server.py > ./mars-rover.log 2>&1
+ ExecStartPre=pulseaudio -D
+ ExecStart=/usr/bin/python3 ./server.py
  User=pi
+ Restart=always
 
  [Install]
  WantedBy=multi-user.target

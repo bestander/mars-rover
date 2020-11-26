@@ -1,4 +1,15 @@
-const domContainer = document.querySelector("#controls");
+
+
+function Video({ srcObject, ...props }) {
+  const refVideo = React.useRef(null)
+
+  React.useEffect(() => {
+    if (!refVideo.current) return
+    refVideo.current.srcObject = srcObject
+  }, [srcObject])
+
+  return <video ref={refVideo} {...props} />
+}
 
 const styles = {
   container: {
@@ -28,11 +39,25 @@ const styles = {
 class Controls extends React.Component {
   constructor(props) {
     super(props);
-    this.ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws`);
-    this.ws.onmessage = function (event) {
-      console.log("message", event);
-    };
-    this.state = { liked: false };
+    this.state = { videoStream: null };
+    const connection = new rtcbot.RTCConnection();
+    this.connection = connection;
+    connection.video.subscribe((stream) => {
+      this.setState({ videoStream: stream });
+    });
+    connection.subscribe(m => console.log("Received from python:", m))
+
+    async function connect() {
+      let offer = await connection.getLocalDescription();
+      let response = await fetch("/connect", {
+        method: "POST",
+        cache: "no-cache",
+        body: JSON.stringify(offer)
+      });
+
+      await connection.setRemoteDescription(await response.json());
+    }
+    connect();
   }
 
   render() {
@@ -41,7 +66,7 @@ class Controls extends React.Component {
         <button
           style={styles.verticalButton}
           onClick={() =>
-            this.ws.send(
+            this.connection.put_nowait(
               JSON.stringify({ action: "move", direction: "forward" })
             )
           }
@@ -52,18 +77,18 @@ class Controls extends React.Component {
           <button
             style={styles.horizontalButton}
             onClick={() =>
-              this.ws.send(
+              this.connection.put_nowait(
                 JSON.stringify({ action: "move", direction: "left" })
               )
             }
           >
             Left
           </button>
-          <img src="/video_feed" />
+          <Video autoplay playsinline controls srcObject = {this.state.videoStream}></Video> 
           <button
             style={styles.horizontalButton}
             onClick={() =>
-              this.ws.send(
+              this.connection.put_nowait(
                 JSON.stringify({ action: "move", direction: "right" })
               )
             }
@@ -74,7 +99,7 @@ class Controls extends React.Component {
         <button
           style={styles.verticalButton}
           onClick={() =>
-            this.ws.send(
+            this.connection.put_nowait(
               JSON.stringify({ action: "move", direction: "backward" })
             )
           }
@@ -86,4 +111,4 @@ class Controls extends React.Component {
   }
 }
 
-ReactDOM.render(<Controls />, domContainer);
+ReactDOM.render(<Controls />, document.querySelector("#controls"));

@@ -32,6 +32,34 @@ function Controls() {
     }
   };
 
+  const pointerDown = (e) => {
+    if (e.clientY < document.body.clientHeight / 3) {
+      connection.put_nowait(
+        JSON.stringify({ action: "move", direction: "forward" })
+      )
+    } else if (e.clientY > document.body.clientHeight * 2 / 3) {
+      connection.put_nowait(
+        JSON.stringify({ action: "move", direction: "backward" })
+      ) 
+    } else {
+      if (e.clientX < document.body.clientWidth / 3) {
+        connection.put_nowait(
+          JSON.stringify({ action: "move", direction: "left" })
+        )
+      } else if (e.clientX > document.body.clientWidth * 2 / 3) {
+        connection.put_nowait(
+          JSON.stringify({ action: "move", direction: "right" })
+        )
+      }
+    }
+  }
+
+  const pointerUp = () => {
+    connection.put_nowait(
+      JSON.stringify({ action: "move", direction: "stop" })
+    )
+  }
+
   React.useEffect(async () => {
     const newConnection = new rtcbot.RTCConnection();
     newConnection.video.subscribe((stream) => {
@@ -51,32 +79,23 @@ function Controls() {
   return (<div style={styles.container}>
     <video ref={refVideo} style={styles.video} playsinline autoplay controls />
     <div style={styles.overlay}
-      onMouseDown={(e) => {
-        playVideo();
-        if (e.clientY < document.body.clientHeight / 3) {
-          connection.put_nowait(
-            JSON.stringify({ action: "move", direction: "forward" })
-          )
-        } else if (e.clientY > document.body.clientHeight * 2 / 3) {
-          connection.put_nowait(
-            JSON.stringify({ action: "move", direction: "backward" })
-          )
-        } else {
-          if (e.clientX < document.body.clientWidth / 3) {
-            connection.put_nowait(
-              JSON.stringify({ action: "move", direction: "left" })
-            )
-          } else if (e.clientX > document.body.clientWidth * 2 / 3) {
-            connection.put_nowait(
-              JSON.stringify({ action: "move", direction: "right" })
-            )
-          }
-        }
+      onContextMenu={(e) => {
+          e.preventDefault();
       }}
-      onMouseUp={(e) => {
-        connection.put_nowait(
-          JSON.stringify({ action: "move", direction: "stop" })
-        )
+      onClick={() => {
+        playVideo();
+      }}
+      onMouseDown={(e) => {
+        pointerDown(e)
+      }}
+      onPointerDown={(e) => {
+        pointerDown(e)
+      }}
+      onMouseUp={() => {
+        pointerUp()
+      }}
+      onPointerUp={() => {
+        pointerUp()
       }}
     >
     </div>

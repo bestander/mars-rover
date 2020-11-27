@@ -77,7 +77,7 @@ function Controls() {
   }, [])
 
   return (<div style={styles.container}>
-    <video ref={refVideo} style={styles.video} playsinline autoplay controls />
+    <video ref={refVideo} style={styles.video} webkit-playsinline="true" playsinline="true" />
     <div style={styles.overlay}
       onContextMenu={(e) => {
           e.preventDefault();

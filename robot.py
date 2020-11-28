@@ -5,6 +5,7 @@ import json
 from rtcbot import RTCConnection, getRTCBotJS, PiCamera, Websocket
 import RPi.GPIO as GPIO
 
+REMOTE_WEB_SERVER = 'http://profanity-rover.space'
 MAX_AXIS_VALUE = 32767
 PWM_FREQUENCY = 50
 # PWM value (7.5% of 20ms cycle) is between forward and backward, means stop
@@ -47,7 +48,7 @@ connections = []
 
 
 async def connect():
-    ws = Websocket("https://profanity-rover/ws")
+    ws = Websocket(REMOTE_WEB_SERVER + '/ws')
     remoteDescription = await ws.get()
     connection = RTCConnection()
     connection.video.putSubscription(bwSubscription)

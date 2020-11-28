@@ -55,4 +55,4 @@ app.router.add_static('/static', './static')
 app.add_routes(routes)
 app.on_shutdown.append(cleanup)
 
-web.run_app(app, port=8000)
+web.run_app(app, port=8080)

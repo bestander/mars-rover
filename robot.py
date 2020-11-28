@@ -1,9 +1,8 @@
-from aiohttp import web
 import asyncio
 import cv2
 from evdev import InputDevice, categorize, ecodes, list_devices
 import json
-from rtcbot import RTCConnection, getRTCBotJS, PiCamera
+from rtcbot import RTCConnection, getRTCBotJS, PiCamera, Websocket
 import RPi.GPIO as GPIO
 
 MAX_AXIS_VALUE = 32767
@@ -27,7 +26,6 @@ right_pwm = GPIO.PWM(RIGHT_SIDE_PIN, PWM_FREQUENCY)
 right_pwm.start(0)
 right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
-routes = web.RouteTableDef()
 camera = PiCamera()
 bwSubscription = asyncio.Queue()
 
@@ -45,26 +43,26 @@ async def onFrame(frame):
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         await bwSubscription.put(frame)
 
-
-@routes.get("/")
-async def index(request):
-    return web.FileResponse('index.html')
+connections = []
 
 
-@routes.get("/rtcbot.js")
-async def rtcbotjs(request):
-    return web.Response(content_type="application/javascript", text=getRTCBotJS())
+async def connect():
+    ws = Websocket("https://profanity-rover/ws")
+    remoteDescription = await ws.get()
+    connection = RTCConnection()
+    connection.video.putSubscription(bwSubscription)
+    connection.subscribe(onMessage)
+    @connection.onClose
+    def close():
+        print("Connection Closed")
+        connections.remove(connection)
 
+    connections.append(conn)
 
-@routes.post("/connect")
-async def connect(request):
-    clientOffer = await request.json()
-    conn = RTCConnection()
-    conn.video.putSubscription(bwSubscription)
-    serverResponse = await conn.getLocalDescription(clientOffer)
-    conn.subscribe(onMessage)
-    return web.json_response(serverResponse)
-
+    robotDescription = await connection.getLocalDescription(remoteDescription)
+    ws.put_nowait(robotDescription)
+    print("Started WebRTC")
+    await ws.close()
 
 async def onMessage(data):
     if data["action"] == "move":
@@ -86,16 +84,6 @@ async def onMessage(data):
             right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
     else:
         print("unsupported event: {}", data)
-
-
-async def cleanup(app):
-    # TODO close all connections gracefully?
-    camera.close()
-
-app = web.Application()
-app.router.add_static('/static', './static')
-app.add_routes(routes)
-app.on_shutdown.append(cleanup)
 
 
 async def waitForController():
@@ -149,5 +137,11 @@ async def onControllerEvent(dev):
 
 loop = asyncio.get_event_loop()
 loop.create_task(waitForController())
+asyncio.ensure_future(connect())
+try:
+    asyncio.get_event_loop().run_forever()
+finally:
+    camera.close()
+    for conn in connections[:]:
+        await conn.close()
 
-web.run_app(app, port=8000)

@@ -10,6 +10,10 @@ const styles = {
     height: "100%",
     width: "100%",
     background: "transparent",
+    "textAlign": "center",
+    "lineHeight": 10,
+    "fontFamily": "sans-serif",
+    "fontSize": "x-large",
   },
   video: {
     position: "absolute",

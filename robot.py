@@ -44,26 +44,31 @@ async def onFrame(frame):
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         await bwSubscription.put(frame)
 
-connections = []
+# connections = []
 
 
-async def connect():
-    ws = Websocket(REMOTE_WEB_SERVER + '/ws')
-    remoteDescription = await ws.get()
-    connection = RTCConnection()
-    connection.video.putSubscription(bwSubscription)
-    connection.subscribe(onMessage)
-    @connection.onClose
-    def close():
-        print("Connection Closed")
-        connections.remove(connection)
+async def registerOnServerAndAwaitRtcConnections():
+    print("sending connect()")
+    ws = Websocket(REMOTE_WEB_SERVER + '/registerRobot')
+    while True:
+        remoteDescription = await ws.get()
+        print("ws.get() response")
+        connection = RTCConnection()
+        connection.video.putSubscription(bwSubscription)
+        connection.subscribe(onMessage)
+        @connection.onClose
+        def close():
+            print("Connection Closed")
+            # connections.remove(connection)
 
-    connections.append(conn)
+    # connections.append(connections)
+    # connections.remove(connection)
+        robotDescription = await connection.getLocalDescription(remoteDescription)
+        ws.put_nowait(robotDescription)
+        print("Started WebRTC")
+    # await ws.close()
+    # print("Closed ws")
 
-    robotDescription = await connection.getLocalDescription(remoteDescription)
-    ws.put_nowait(robotDescription)
-    print("Started WebRTC")
-    await ws.close()
 
 async def onMessage(data):
     if data["action"] == "move":
@@ -138,11 +143,12 @@ async def onControllerEvent(dev):
 
 loop = asyncio.get_event_loop()
 loop.create_task(waitForController())
-asyncio.ensure_future(connect())
+asyncio.ensure_future(registerOnServerAndAwaitRtcConnections())
 try:
     asyncio.get_event_loop().run_forever()
 finally:
     camera.close()
-    for conn in connections[:]:
-        await conn.close()
+    # for conn in connections:
+    #     print("close again", conn)
+    #     conn.close()
 

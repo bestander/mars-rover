@@ -13,40 +13,40 @@ async def index(request):
 async def rtcbotjs(request):
     return web.Response(content_type="application/javascript", text=getRTCBotJS())
 
-ws = None  # Websocket connection to the robot
+robotWebSocket = None  # Websocket connection to the robot
 
 
-@routes.get("/ws")
+@routes.get("/registerRobot")
 async def websocket(request):
-    global ws
-    if ws is not None:
-        c = ws.close()
+    global robotWebSocket
+    if robotWebSocket is not None:
+        c = robotWebSocket.close()
         if c is not None:
             await c
         
-    ws = Websocket(request)
+    robotWebSocket = Websocket(request)
     print("Robot Connected")
-    await ws  # Wait until the websocket closes
+    await robotWebSocket  # Wait until the websocket closes
     print("Robot disconnected")
-    return ws.ws
+    return robotWebSocket.robotWebSocket
 
 
-@routes.post("/connect")
+@routes.post("/negotiateRtcConnectionWithRobot")
 async def connect(request):
-    global ws
-    if ws is None:
+    global robotWebSocket
+    if robotWebSocket is None:
         raise web.HTTPInternalServerError("There is no robot connected")
     clientOffer = await request.json()
     # Send the offer to the robot, and receive its response
-    ws.put_nowait(clientOffer)
-    robotResponse = await ws.get()
+    robotWebSocket.put_nowait(clientOffer)
+    robotResponse = await robotWebSocket.get()
     return web.json_response(robotResponse)
 
 
 async def cleanup(app=None):
-    global ws
-    if ws is not None:
-        c = ws.close()
+    global robotWebSocket
+    if robotWebSocket is not None:
+        c = robotWebSocket.close()
         if c is not None:
             await c
 

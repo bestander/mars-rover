@@ -67,7 +67,7 @@ function Controls() {
     });
     newConnection.subscribe(m => console.log("Received from python:", m))
     const offer = await newConnection.getLocalDescription();
-    const response = await fetch("/connect", {
+    const response = await fetch("/negotiateRtcConnectionWithRobot", {
       method: "POST",
       cache: "no-cache",
       body: JSON.stringify(offer)

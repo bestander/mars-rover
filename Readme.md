@@ -39,7 +39,7 @@ Rover controls are written in Python 3, main components:
  Type=idle
  WorkingDirectory=/home/pi/mars-rover
  ExecStartPre=pulseaudio -D
- ExecStart=/usr/bin/python3 ./server.py
+ ExecStart=/usr/bin/python3 ./robot.py
  User=pi
  Restart=always
 

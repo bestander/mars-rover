@@ -22,17 +22,22 @@ const styles = {
 
 function Controls() {
   const [connection, setConnection] = React.useState(null);
+  const [message, setMessage] = React.useState('Rober not connected');
   const [isVideoStarted, setVideoStarted] = React.useState(false);
   const refVideo = React.useRef(null);
 
   const playVideo = () => {
-    if (refVideo.current && refVideo.current.srcObject && !isVideoStarted) {
+    if (connection && refVideo.current && refVideo.current.srcObject && !isVideoStarted) {
+      setMessage(null);
       setVideoStarted(true);
       refVideo.current.play();
     }
   };
 
   const pointerDown = (e) => {
+    if (!connection) {
+      return;
+    }
     if (e.clientY < document.body.clientHeight / 3) {
       connection.put_nowait(
         JSON.stringify({ action: "move", direction: "forward" })
@@ -55,6 +60,9 @@ function Controls() {
   }
 
   const pointerUp = () => {
+    if (!connection) {
+      return;
+    }
     connection.put_nowait(
       JSON.stringify({ action: "move", direction: "stop" })
     )
@@ -73,6 +81,7 @@ function Controls() {
       body: JSON.stringify(offer)
     });
     await newConnection.setRemoteDescription(await response.json());
+    setMessage('Robot found: click to start driving');
     setConnection(newConnection);
   }, [])
 
@@ -98,6 +107,7 @@ function Controls() {
         pointerUp()
       }}
     >
+      {message}
     </div>
   </div>)
 }

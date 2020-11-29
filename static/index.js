@@ -22,7 +22,7 @@ const styles = {
 
 function Controls() {
   const [connection, setConnection] = React.useState(null);
-  const [message, setMessage] = React.useState('Rober not connected');
+  const [message, setMessage] = React.useState('Rover not connected');
   const [isVideoStarted, setVideoStarted] = React.useState(false);
   const refVideo = React.useRef(null);
 
@@ -75,13 +75,18 @@ function Controls() {
     });
     newConnection.subscribe(m => console.log("Received from python:", m))
     const offer = await newConnection.getLocalDescription();
-    const response = await fetch("/negotiateRtcConnectionWithRobot", {
-      method: "POST",
-      cache: "no-cache",
-      body: JSON.stringify(offer)
-    });
-    await newConnection.setRemoteDescription(await response.json());
-    setMessage('Robot found: click to start driving');
+    try {
+      const response = await fetch("/negotiateRtcConnectionWithRobot", {
+        method: "POST",
+        cache: "no-cache",
+        body: JSON.stringify(offer)
+      });
+      await newConnection.setRemoteDescription(await response.json());
+    } catch (e) {
+      console.log(e);
+      return;
+    }
+    setMessage('Rover connected: click to start driving');
     setConnection(newConnection);
   }, [])
 

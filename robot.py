@@ -44,30 +44,26 @@ async def onFrame(frame):
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         await bwSubscription.put(frame)
 
-# connections = []
+connections = []
 
 
 async def registerOnServerAndAwaitRtcConnections():
-    print("sending connect()")
+    print("sending /registerRobot")
     ws = Websocket(REMOTE_WEB_SERVER + '/registerRobot')
     while True:
         remoteDescription = await ws.get()
-        print("ws.get() response")
+        print("new web user requested connect")
         connection = RTCConnection()
         connection.video.putSubscription(bwSubscription)
         connection.subscribe(onMessage)
         @connection.onClose
         def close():
             print("Connection Closed")
-            # connections.remove(connection)
+            connections.remove(connection)
 
-    # connections.append(connections)
-    # connections.remove(connection)
+        connections.append(connection)
         robotDescription = await connection.getLocalDescription(remoteDescription)
         ws.put_nowait(robotDescription)
-        print("Started WebRTC")
-    # await ws.close()
-    # print("Closed ws")
 
 
 async def onMessage(data):
@@ -148,7 +144,6 @@ try:
     asyncio.get_event_loop().run_forever()
 finally:
     camera.close()
-    # for conn in connections:
-    #     print("close again", conn)
-    #     conn.close()
+    for conn in connections:
+        conn.close()
 

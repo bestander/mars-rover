@@ -10,6 +10,10 @@ const styles = {
     height: "100%",
     width: "100%",
     background: "transparent",
+    "textAlign": "center",
+    "lineHeight": 10,
+    "fontFamily": "sans-serif",
+    "fontSize": "x-large",
   },
   video: {
     position: "absolute",
@@ -22,17 +26,22 @@ const styles = {
 
 function Controls() {
   const [connection, setConnection] = React.useState(null);
+  const [message, setMessage] = React.useState('Rover not connected');
   const [isVideoStarted, setVideoStarted] = React.useState(false);
   const refVideo = React.useRef(null);
 
   const playVideo = () => {
-    if (refVideo.current && refVideo.current.srcObject && !isVideoStarted) {
+    if (connection && refVideo.current && refVideo.current.srcObject && !isVideoStarted) {
+      setMessage(null);
       setVideoStarted(true);
       refVideo.current.play();
     }
   };
 
   const pointerDown = (e) => {
+    if (!connection) {
+      return;
+    }
     if (e.clientY < document.body.clientHeight / 3) {
       connection.put_nowait(
         JSON.stringify({ action: "move", direction: "forward" })
@@ -55,6 +64,9 @@ function Controls() {
   }
 
   const pointerUp = () => {
+    if (!connection) {
+      return;
+    }
     connection.put_nowait(
       JSON.stringify({ action: "move", direction: "stop" })
     )
@@ -67,12 +79,18 @@ function Controls() {
     });
     newConnection.subscribe(m => console.log("Received from python:", m))
     const offer = await newConnection.getLocalDescription();
-    const response = await fetch("/negotiateRtcConnectionWithRobot", {
-      method: "POST",
-      cache: "no-cache",
-      body: JSON.stringify(offer)
-    });
-    await newConnection.setRemoteDescription(await response.json());
+    try {
+      const response = await fetch("/negotiateRtcConnectionWithRobot", {
+        method: "POST",
+        cache: "no-cache",
+        body: JSON.stringify(offer)
+      });
+      await newConnection.setRemoteDescription(await response.json());
+    } catch (e) {
+      console.log(e);
+      return;
+    }
+    setMessage('Rover connected: click to start driving');
     setConnection(newConnection);
   }, [])
 
@@ -98,6 +116,7 @@ function Controls() {
         pointerUp()
       }}
     >
+      {message}
     </div>
   </div>)
 }

@@ -28,7 +28,6 @@ async def websocket(request):
     print("Robot Connected")
     await robotWebSocket  # Wait until the websocket closes
     print("Robot disconnected")
-    return robotWebSocket.robotWebSocket
 
 
 @routes.post("/negotiateRtcConnectionWithRobot")

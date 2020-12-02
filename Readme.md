@@ -27,7 +27,7 @@ Rover controls are written in Python 3, main components:
 - sudo apt-get install python3-numpy python3-cffi python3-aiohttp \
     libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev \
     libswscale-dev libswresample-dev libavfilter-dev libopus-dev \
-    libvpx-dev pkg-config libsrtp2-dev python3-opencv pulseaudio \ python3-rpi.gpio
+    libvpx-dev pkg-config libsrtp2-dev python3-opencv pulseaudio python3-rpi.gpio mpg123
 - Install sound card https://wiki.seeedstudio.com/ReSpeaker_2_Mics_Pi_HAT/
 - pip3 install -r robot-requirements.txt
 - python3 robot.py

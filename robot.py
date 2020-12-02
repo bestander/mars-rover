@@ -140,7 +140,8 @@ async def onControllerEvent(dev):
         elif event.type == ecodes.EV_KEY and event.value == 1:
             # steam controller button presses
             if str(event.code) in STEAM_CONTROLLER_CODES_TO_SOUNDS:
-                await playSound(str(event.code))
+                asyncio.get_event_loop().create_task(playSound(str(event.code)))
+                
 
 SOUNDBAR_PATH = 'soundboard'
 STEAM_CONTROLLER_CODES_TO_SOUNDS = {
@@ -186,7 +187,7 @@ loop.create_task(waitForController())
 loop.create_task(playSound(random.choice(list(STEAM_CONTROLLER_CODES_TO_SOUNDS.keys()))))
 asyncio.ensure_future(registerOnServerAndAwaitRtcConnections())
 try:
-    asyncio.get_event_loop().run_forever()
+    loop.run_forever()
 finally:
     camera.close()
     for conn in connections:

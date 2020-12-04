@@ -20,13 +20,23 @@ Rover controls are written in Python 3, main components:
 - Motors controls (RPi.GPIO package)
 
 
-### Quick setup
+### Quick Robot setup
 
 - Install Raspbian
 - Enable I2C and SSH
-- sudo apt install python3-rpi.gpio
-- python3 server.py
+- sudo apt-get install python3-numpy python3-cffi python3-aiohttp \
+    libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev \
+    libswscale-dev libswresample-dev libavfilter-dev libopus-dev \
+    libvpx-dev pkg-config libsrtp2-dev python3-opencv pulseaudio python3-rpi.gpio mpg123
+- Install sound card https://wiki.seeedstudio.com/ReSpeaker_2_Mics_Pi_HAT/
+- pip3 install -r robot-requirements.txt
+- python3 robot.py
 - Installing missing native .so files https://blog.piwheels.org/how-to-work-out-the-missing-dependencies-for-a-python-package/ (for cv2)
+
+### Quick webserver setup
+
+- pip3 install -r webserver-requirements.txt
+- python3 web-server.py
 
 ## Autostart
 

@@ -2,6 +2,7 @@ import asyncio
 import cv2
 from evdev import InputDevice, categorize, ecodes, list_devices
 import json
+import random
 from rtcbot import RTCConnection, getRTCBotJS, PiCamera, Websocket
 import RPi.GPIO as GPIO
 
@@ -136,12 +137,57 @@ async def onControllerEvent(dev):
                     last_y_axis_value / MAX_AXIS_VALUE * right_adjustment
                 left_pwm.ChangeDutyCycle(left_duty_cycle)
                 right_pwm.ChangeDutyCycle(right_duty_cycle)
+        elif event.type == ecodes.EV_KEY and event.value == 1:
+            # steam controller button presses
+            if str(event.code) in STEAM_CONTROLLER_CODES_TO_SOUNDS:
+                asyncio.get_event_loop().create_task(playSound(str(event.code)))
+                
+
+SOUNDBAR_PATH = 'soundboard'
+STEAM_CONTROLLER_CODES_TO_SOUNDS = {
+    '304': SOUNDBAR_PATH + '/amer-neverfall.mp3',
+    '305': SOUNDBAR_PATH + '/comm-death.mp3',
+    '307': SOUNDBAR_PATH + '/comm-detect.mp3',
+    '308': SOUNDBAR_PATH + '/comm-failure.mp3',
+    '310': SOUNDBAR_PATH + '/comm-targacq.mp3',
+    '311': SOUNDBAR_PATH + '/compos.mp3',
+    '312': SOUNDBAR_PATH + '/compos-2.mp3',
+    '313': SOUNDBAR_PATH + '/compos-4.mp3',
+    '314': SOUNDBAR_PATH + '/comm-setback.mp3',
+    '315': SOUNDBAR_PATH + '/libonline-1.mp3',
+    '318': SOUNDBAR_PATH + '/freedom.mp3',
+    '336': SOUNDBAR_PATH + '/warning-1.mp3',
+    '337': SOUNDBAR_PATH + '/primtargets-4.mp3',
+    '544': SOUNDBAR_PATH + '/death-comm.mp3',
+    '545': SOUNDBAR_PATH + '/death-nonneg.mp3',
+    '546': SOUNDBAR_PATH + '/destroy-comm.mp3',
+    '547': SOUNDBAR_PATH + '/embrace-dem.mp3',
+    'DEATH-1': SOUNDBAR_PATH + '/death-1.mp3',
+    'DEATH-2': SOUNDBAR_PATH + '/death-3.mp3',
+    'OVERCHARGE': SOUNDBAR_PATH + '/overcharge.mp3',
+    'SELF-DESTRUCT': SOUNDBAR_PATH + '/primtargets-3.mp3',
+}
+
+
+playing = False
+async def playSound(key):
+    global playing
+    if playing == False:
+        playing = True
+        proc = await asyncio.create_subprocess_exec(
+        'mpg123', STEAM_CONTROLLER_CODES_TO_SOUNDS[key],
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await proc.communicate()
+        playing = False
+
 
 loop = asyncio.get_event_loop()
 loop.create_task(waitForController())
+loop.create_task(playSound(random.choice(list(STEAM_CONTROLLER_CODES_TO_SOUNDS.keys()))))
 asyncio.ensure_future(registerOnServerAndAwaitRtcConnections())
 try:
-    asyncio.get_event_loop().run_forever()
+    loop.run_forever()
 finally:
     camera.close()
     for conn in connections:

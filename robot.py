@@ -5,6 +5,7 @@ import json
 import random
 from rtcbot import RTCConnection, getRTCBotJS, PiCamera, Websocket
 import RPi.GPIO as GPIO
+import numpy
 
 REMOTE_WEB_SERVER = 'http://profanity-rover.space'
 MAX_AXIS_VALUE = 32767
@@ -32,17 +33,48 @@ camera = PiCamera()
 bwSubscription = asyncio.Queue()
 
 frames = 0
-
+hsv = None
+red = {"hueMin": 0, "hueMax": 10, "satMin": 0, "satMax": 10, "valMin": 15, "valMax":60}
+MIN_PIXELS_THRESHOLD = 2000
 
 @camera.subscribe
 async def onFrame(frame):
     global frames
+    global hsv
+    global red
     frames = frames + 1
     if frames % 5 == 0:
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame = cv2.GaussianBlur(frame, (3, 3), 0)
-        frame = cv2.Canny(frame, 50, 50)
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # frame = cv2.GaussianBlur(frame, (3, 3), 0)
+        # frame = cv2.Canny(frame, 50, 50)
+        # frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        if hsv == None:
+            hsv = red
+        lowerHsvRange = numpy.array([hsv["hueMin"], hsv["satMin"], hsv["valMin"]])
+        upperHsvRange = numpy.array([hsv["hueMax"], hsv["satMax"], hsv["valMax"]])
+        mask = cv2.inRange(frame, lowerHsvRange, upperHsvRange)
+        # Crop left and right half of mask
+        x, y, w, h = 0, 0, frame.shape[1]//2, frame.shape[0]
+        left = mask[y:y+h, x:x+w]
+        right = mask[y:y+h, x+w:x+w+w]
+        # Count pixels
+        left_pixels = cv2.countNonZero(left)
+        right_pixels = cv2.countNonZero(right)
+        print(left_pixels, right_pixels)
+        if left_pixels - right_pixels > MIN_PIXELS_THRESHOLD:
+            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+        elif right_pixels - left_pixels > MIN_PIXELS_THRESHOLD:
+            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+        elif left_pixels + right_pixels > MIN_PIXELS_THRESHOLD:
+            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+        else:
+            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+        frames = 0
+        frame = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         await bwSubscription.put(frame)
 
 connections = []
@@ -68,6 +100,7 @@ async def registerOnServerAndAwaitRtcConnections():
 
 
 async def onMessage(data):
+    global hsv
     if data["action"] == "move":
         direction = data["direction"]
         if direction == "forward":
@@ -85,6 +118,8 @@ async def onMessage(data):
         elif direction == "stop":
             left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
             right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+    elif data["action"] == "hsv":
+        hsv = data["hsv"]
     else:
         print("unsupported event: {}", data)
 

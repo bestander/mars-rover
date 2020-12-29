@@ -84,7 +84,9 @@ function Controls() {
     newConnection.video.subscribe((stream) => {
       refVideo.current.srcObject = stream;
     });
-    newConnection.subscribe(m => console.log("Received from python:", m))
+    newConnection.subscribe(m => {
+      console.log("Received from python:", m)
+    });
     const offer = await newConnection.getLocalDescription();
     try {
       const response = await fetch("/negotiateRtcConnectionWithRobot", {
@@ -128,12 +130,12 @@ function Controls() {
           {message}
         </div>
       </div>
-      <HSLControl connection={connection}></HSLControl>
+      <HSVControl connection={connection}></HSVControl>
     </div>
   )
 }
 
-const hslStyles = {
+const hsvStyles = {
   container: {
     display: "flex",
     flexDirection: "column"
@@ -142,15 +144,16 @@ const hslStyles = {
   },
 }
 
-function HSLControl(props) {
-  const [hsv, setHSV] = React.useState({
-    hueMin: 0,
-    hueMax: 255,
-    satMin: 0,
-    satMax: 180,
-    valMin: 0,
-    valMax: 255,
-  });
+function HSVControl(props) {
+  const [hsv, setHSV] = React.useState(null);
+  if (props.connection) {
+    props.connection.subscribe(m => {
+      const msg = JSON.parse(m);
+      if (msg.action === 'hsv' && msg.hsv) {
+        setHSV({...msg.hsv});
+      }
+    });
+  }
 
   React.useEffect(() => {
     if (props.connection) {
@@ -160,71 +163,74 @@ function HSLControl(props) {
     }
   }, [hsv])
 
-  return (<div style={hslStyles.container}>
-    <div style={hslStyles.row}>
-      Hue
+  return (
+    hsv ?
+      <div style={hsvStyles.container}>
+        <div style={hsvStyles.row}>
+          Hue
     <input type="range"
-        min={0}
-        max={hsv.hueMax}
-        step={1}
-        defaultValue={hsv.hueMin}
-        onMouseUp={(e) => {
-          setHSV({ ...hsv, hueMin: +e.target.value });
-        }}
-      ></input><span>{hsv.hueMin}</span>
-      <input type="range"
-        min={hsv.hueMin}
-        max={255}
-        step={1}
-        defaultValue={hsv.hueMax}
-        onMouseUp={(e) => {
-          setHSV({ ...hsv, hueMax: +e.target.value });
-        }}
-      ></input><span>{hsv.hueMax}</span>
-    </div>
-    <div style={hslStyles.row}>
-      Saturation
+            min={0}
+            max={hsv.hueMax}
+            step={1}
+            defaultValue={hsv.hueMin}
+            onMouseUp={(e) => {
+              setHSV({ ...hsv, hueMin: +e.target.value });
+            }}
+          ></input><span>{hsv.hueMin}</span>
+          <input type="range"
+            min={hsv.hueMin}
+            max={255}
+            step={1}
+            defaultValue={hsv.hueMax}
+            onMouseUp={(e) => {
+              setHSV({ ...hsv, hueMax: +e.target.value });
+            }}
+          ></input><span>{hsv.hueMax}</span>
+        </div>
+        <div style={hsvStyles.row}>
+          Saturation
     <input type="range"
-        min={0}
-        max={hsv.satMax}
-        step={1}
-        defaultValue={hsv.satMin}
-        onMouseUp={(e) => {
-          setHSV({ ...hsv, satMin: +e.target.value });
-        }}
-      ></input><span>{hsv.satMin}</span>
-      <input type="range"
-        min={hsv.satMin}
-        max={180}
-        step={1}
-        defaultValue={hsv.satMax}
-        onMouseUp={(e) => {
-          setHSV({ ...hsv, satMax: +e.target.value });
-        }}
-      ></input><span>{hsv.satMax}</span>
-    </div>
-    <div style={hslStyles.row}>
-      Value
+            min={0}
+            max={hsv.satMax}
+            step={1}
+            defaultValue={hsv.satMin}
+            onMouseUp={(e) => {
+              setHSV({ ...hsv, satMin: +e.target.value });
+            }}
+          ></input><span>{hsv.satMin}</span>
+          <input type="range"
+            min={hsv.satMin}
+            max={180}
+            step={1}
+            defaultValue={hsv.satMax}
+            onMouseUp={(e) => {
+              setHSV({ ...hsv, satMax: +e.target.value });
+            }}
+          ></input><span>{hsv.satMax}</span>
+        </div>
+        <div style={hsvStyles.row}>
+          Value
     <input type="range"
-        min={0}
-        max={hsv.valMax}
-        step={1}
-        defaultValue={hsv.valMin}
-        onMouseUp={(e) => {
-          setHSV({ ...hsv, valMin: +e.target.value });
-        }}
-      ></input><span>{hsv.valMin}</span>
-      <input type="range"
-        min={hsv.valMin}
-        max={180}
-        step={1}
-        defaultValue={hsv.valMax}
-        onMouseUp={(e) => {
-          setHSV({ ...hsv, valMax: +e.target.value });
-        }}
-      ></input><span>{hsv.valMax}</span>
-    </div>
-  </div>)
+            min={0}
+            max={hsv.valMax}
+            step={1}
+            defaultValue={hsv.valMin}
+            onMouseUp={(e) => {
+              setHSV({ ...hsv, valMin: +e.target.value });
+            }}
+          ></input><span>{hsv.valMin}</span>
+          <input type="range"
+            min={hsv.valMin}
+            max={180}
+            step={1}
+            defaultValue={hsv.valMax}
+            onMouseUp={(e) => {
+              setHSV({ ...hsv, valMax: +e.target.value });
+            }}
+          ></input><span>{hsv.valMax}</span>
+        </div>
+      </div> : null
+  )
 }
 
 ReactDOM.render(<Controls />, document.querySelector("#controls"));

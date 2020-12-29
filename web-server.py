@@ -1,4 +1,5 @@
 from aiohttp import web
+import datetime
 from rtcbot import Websocket, getRTCBotJS
 
 routes = web.RouteTableDef()
@@ -25,9 +26,9 @@ async def websocket(request):
             await c
         
     robotWebSocket = Websocket(request)
-    print("Robot Connected")
+    print("{:%Y-%m-%d %H:%M:%S}: Robot Connected".format(datetime.datetime.now()))
     await robotWebSocket  # Wait until the websocket closes
-    print("Robot disconnected")
+    print("{:%Y-%m-%d %H:%M:%S}: Robot Disconnected".format(datetime.datetime.now()))
 
 
 @routes.post("/negotiateRtcConnectionWithRobot")

@@ -1,5 +1,6 @@
 import asyncio
 import cv2
+import datetime
 from evdev import InputDevice, categorize, ecodes, list_devices
 import json
 import random
@@ -8,6 +9,7 @@ import RPi.GPIO as GPIO
 import numpy
 
 REMOTE_WEB_SERVER = 'http://profanity-rover.space'
+# REMOTE_WEB_SERVER = 'http://192.168.0.46:8080'
 MAX_AXIS_VALUE = 32767
 PWM_FREQUENCY = 50
 # PWM value (7.5% of 20ms cycle) is between forward and backward, means stop
@@ -30,18 +32,19 @@ right_pwm.start(0)
 right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
 
 camera = PiCamera()
-bwSubscription = asyncio.Queue()
+videoFrameSubscription = asyncio.Queue()
+cv2ColorSubscription = asyncio.Queue()
 
 frames = 0
 hsv = None
-red = {"hueMin": 0, "hueMax": 10, "satMin": 0, "satMax": 10, "valMin": 15, "valMax":60}
+hsv_default = {"hueMin": 0, "hueMax": 10, "satMin": 0, "satMax": 10, "valMin": 15, "valMax":60}
 MIN_PIXELS_THRESHOLD = 2000
 
 @camera.subscribe
 async def onFrame(frame):
     global frames
     global hsv
-    global red
+    global hsv_default
     frames = frames + 1
     if frames % 5 == 0:
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -49,7 +52,7 @@ async def onFrame(frame):
         # frame = cv2.Canny(frame, 50, 50)
         # frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         if hsv == None:
-            hsv = red
+            hsv = hsv_default
         lowerHsvRange = numpy.array([hsv["hueMin"], hsv["satMin"], hsv["valMin"]])
         upperHsvRange = numpy.array([hsv["hueMax"], hsv["satMax"], hsv["valMax"]])
         mask = cv2.inRange(frame, lowerHsvRange, upperHsvRange)
@@ -60,22 +63,26 @@ async def onFrame(frame):
         # Count pixels
         left_pixels = cv2.countNonZero(left)
         right_pixels = cv2.countNonZero(right)
-        print(left_pixels, right_pixels)
-        if left_pixels - right_pixels > MIN_PIXELS_THRESHOLD:
-            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-        elif right_pixels - left_pixels > MIN_PIXELS_THRESHOLD:
-            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
-        elif left_pixels + right_pixels > MIN_PIXELS_THRESHOLD:
-            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
-        else:
-            left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
-            right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+        await cv2ColorSubscription.put({
+            "action": "maskedColorPixels",
+            "leftSide": left_pixels,
+            "rightSide": right_pixels,
+        })
+        #  if left_pixels - right_pixels > MIN_PIXELS_THRESHOLD:
+        #     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+        #     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+        # elif right_pixels - left_pixels > MIN_PIXELS_THRESHOLD:
+        #     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+        #     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE - DUTY_CYCLE_RANGE)
+        # elif left_pixels + right_pixels > MIN_PIXELS_THRESHOLD:
+        #     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+        #     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE + DUTY_CYCLE_RANGE)
+        # else:
+        #     left_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)
+        #     right_pwm.ChangeDutyCycle(STOP_DUTY_CYCLE)       
         frames = 0
         frame = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-        await bwSubscription.put(frame)
+        await videoFrameSubscription.put(frame)
 
 connections = []
 
@@ -85,13 +92,19 @@ async def registerOnServerAndAwaitRtcConnections():
     ws = Websocket(REMOTE_WEB_SERVER + '/registerRobot')
     while True:
         remoteDescription = await ws.get()
-        print("new web user requested connect")
+        print("{:%Y-%m-%d %H:%M:%S}: new web user requested connect".format(datetime.datetime.now()))
+
         connection = RTCConnection()
-        connection.video.putSubscription(bwSubscription)
+        connection.video.putSubscription(videoFrameSubscription)
         connection.subscribe(onMessage)
+        connection.putSubscription(cv2ColorSubscription)
+        connection.put_nowait({
+            "action": "hsv",
+            "hsv": hsv
+        })
         @connection.onClose
         def close():
-            print("Connection Closed")
+            print("{:%Y-%m-%d %H:%M:%S}: Connection Closed".format(datetime.datetime.now()))
             connections.remove(connection)
 
         connections.append(connection)
